@@ -4,10 +4,21 @@ PNG (Portable Network Graphics) is a file format designed for the lossless, port
 
 ### Quick Start
 
-```bash
-./build.sh
-./png sample_transparent_image.png
-```
+1. **Encrypt a message into a PNG file**
+   Provide an input image (PNG format) and specify the output image that will contain the hidden message.
+   Run the following commands to build and execute the encryption:
+
+   ```bash
+   ./build.sh
+   ./png sample_transparent_image.png output.png
+   ```
+
+2. **Decode the hidden message from the PNG file**
+   To extract the encrypted message from the output image, run:
+
+   ```bash
+   ./decode output.png
+   ```
 
 ### References
 

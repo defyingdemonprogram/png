@@ -12,7 +12,7 @@ const uint8_t png_sig[PNG_SIG_CAP] = {137, 80, 78, 71, 13, 10, 26, 10};
 uint8_t chunk_buf[CHUNK_BUF_CAP];
 
 #define INJECTED_DATA "Hello world, from @realsanjeev"
-#define INJECTED_SIZE sizeof(INJECTED_DATA)
+#define INJECTED_SIZE (sizeof(INJECTED_DATA) - 1)
 
 
 #define read_bytes_or_panic(file, buf, buf_cap) read_bytes_or_panic_(file, buf, buf_cap, __FILE__, __LINE__)
