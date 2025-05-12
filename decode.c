@@ -9,6 +9,7 @@
 #define PNG_SIG_CAP 8
 const uint8_t png_sig[PNG_SIG_CAP] = {137, 80, 78, 71, 13, 10, 26, 10};
 #define CHUNK_BUF_CAP (32 * 1024)
+#define SECRET_CHUNK_TYPE "tEXt"
 
 #define read_bytes_or_panic(file, buf, buf_cap) read_bytes_or_panic_(file, buf, buf_cap, __FILE__, __LINE__)
 static void read_bytes_or_panic_(FILE *file, void *buf, size_t buf_cap, const char *source_file, int source_line) {
@@ -39,7 +40,7 @@ static void print_bytes(const uint8_t *buf, size_t buf_cap) {
 
 void reverse_bytes(void *buf0, size_t buf_cap) {
     uint8_t *bytes = buf0;
-    for (size_t i = 0; i < buf_cap/2; ++i) {
+    for (size_t i = 0; i < buf_cap / 2; ++i) {
         uint8_t t = bytes[i];
         bytes[i] = bytes[buf_cap - i - 1];
         bytes[buf_cap - i - 1] = t;
@@ -75,15 +76,25 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    while (true) {
+    bool found_secret_chunk = false;
+
+    while (!feof(input_file)) {
+        // Read chunk length (big-endian)
         uint32_t chunk_sz;
         read_bytes_or_panic(input_file, &chunk_sz, sizeof(chunk_sz));
         reverse_bytes(&chunk_sz, sizeof(chunk_sz));
 
-        uint8_t chunk_type[5] = {0};
+        // Read chunk type
+        uint8_t chunk_type[4] = {0};
         read_bytes_or_panic(input_file, chunk_type, 4);
 
-        if (strncmp((char*)chunk_type, "faKE", 4) == 0) {
+        printf("Found chunk: %.*s (%u bytes)\n", 4, chunk_type, chunk_sz);
+
+        // Check for the custom chunk
+        if (memcmp(chunk_type, SECRET_CHUNK_TYPE, 4) == 0) {
+            found_secret_chunk = true;
+             
+            // Allocate buffer for chunk data (-1 for null terminator)
             char *data = malloc(chunk_sz + 1);
             if (!data) {
                 fprintf(stderr, "ERROR: memory allocation failed for %u bytes\n", chunk_sz);
@@ -93,21 +104,31 @@ int main(int argc, char **argv) {
 
             read_bytes_or_panic(input_file, data, chunk_sz);
             data[chunk_sz] = '\0';
-            printf("Decoded message from 'faKE' chunk: %s\n", data);
+            printf("\nFound custom '%s' chunk with message:\n%s\n\n", SECRET_CHUNK_TYPE, data);
             free(data);
 
             // Read and discard CRC
             uint32_t crc;
             read_bytes_or_panic(input_file, &crc, sizeof(crc));
             break;
+        } else if (memcmp(chunk_type, "IEND", 4) == 0) {
+            // End of PNG file
+            uint32_t crc;
+            read_bytes_or_panic(input_file, &crc, sizeof(crc));
+            break;
         } else {
-            // Skip chunk data and CRC
+            // Skip other chunks (data + CRC)
             if (fseek(input_file, chunk_sz + 4, SEEK_CUR) != 0) {
+                if (feof(input_file)) break;
                 fprintf(stderr, "ERROR: failed to seek past chunk: %s\n", strerror(errno));
                 fclose(input_file);
                 exit(1);
             }
         }
+    }
+
+    if (!found_secret_chunk) {
+        printf("No '%s' chunk found in the PNG file.\n", SECRET_CHUNK_TYPE);
     }
 
     fclose(input_file);
